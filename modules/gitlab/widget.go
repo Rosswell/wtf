@@ -9,8 +9,7 @@ import (
 )
 
 type ContentItem struct {
-	Type string
-	ID   int
+	URL string
 }
 
 type Widget struct {
@@ -68,12 +67,12 @@ func (widget *Widget) Refresh() {
 	widget.display()
 }
 
-// SetItemCount sets the amount of PRs RRs and other PRs throughout the widgets display creation
+// SetItemCount sets the amount of selectable items rendered so far
 func (widget *Widget) SetItemCount(items int) {
 	widget.maxItems = items
 }
 
-// GetItemCount returns the amount of PRs RRs and other PRs calculated so far as an int
+// GetItemCount returns the amount of selectable items rendered so far
 func (widget *Widget) GetItemCount() int {
 	return widget.maxItems
 }
@@ -126,65 +125,12 @@ func (widget *Widget) buildProjectCollection(context *context, projectData []str
 	return gitlabProjects
 }
 
-func (widget *Widget) currentGitlabProject() *GitlabProject {
-	if len(widget.GitlabProjects) == 0 {
-		return nil
-	}
-
-	if widget.Idx < 0 || widget.Idx >= len(widget.GitlabProjects) {
-		return nil
-	}
-
-	return widget.GitlabProjects[widget.Idx]
-}
-
 func (widget *Widget) openItemInBrowser() {
 	currentSelection := widget.View.GetHighlights()
-	if widget.Selected >= 0 && currentSelection[0] != "" {
-
+	if widget.Selected >= 0 && len(currentSelection) > 0 && currentSelection[0] != "" {
 		item := widget.Items[widget.Selected]
-		url := ""
-
-		project := widget.currentGitlabProject()
-		if project == nil {
-			// This is a problem. We will just bail out for now
-			return
+		if item.URL != "" {
+			utils.OpenFile(item.URL)
 		}
-
-		switch item.Type {
-		case "MR":
-			url = (project.RemoteProject.WebURL + "/merge_requests/" + strconv.Itoa(item.ID))
-		case "ISSUE":
-			url = (project.RemoteProject.WebURL + "/issues/" + strconv.Itoa(item.ID))
-		}
-
-		utils.OpenFile(url)
 	}
-}
-
-func (widget *Widget) openRepo() {
-	project := widget.currentGitlabProject()
-	if project == nil {
-		return
-	}
-	url := project.RemoteProject.WebURL
-	utils.OpenFile(url)
-}
-
-func (widget *Widget) openPulls() {
-	project := widget.currentGitlabProject()
-	if project == nil {
-		return
-	}
-	url := project.RemoteProject.WebURL + "/merge_requests/"
-	utils.OpenFile(url)
-}
-
-func (widget *Widget) openIssues() {
-	project := widget.currentGitlabProject()
-	if project == nil {
-		return
-	}
-	url := project.RemoteProject.WebURL + "/issues/"
-	utils.OpenFile(url)
 }

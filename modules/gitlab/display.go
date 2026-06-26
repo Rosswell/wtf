@@ -2,8 +2,6 @@ package gitlab
 
 import (
 	"fmt"
-
-	glab "gitlab.com/gitlab-org/api/client-go"
 )
 
 func (widget *Widget) display() {
@@ -26,109 +24,65 @@ func (widget *Widget) contentError() (string, string, bool) {
 }
 
 func (widget *Widget) content() (string, string, bool) {
-
-	project := widget.currentGitlabProject()
-	if project == nil {
+	if len(widget.GitlabProjects) == 0 {
 		return widget.CommonSettings().Title, " Gitlab project data is unavailable ", true
 	}
 
-	// initial maxItems count
+	// reset the selectable item collection on every render
 	widget.Items = make([]ContentItem, 0)
 	widget.SetItemCount(0)
 
-	title := fmt.Sprintf("%s - %s", widget.CommonSettings().Title, widget.title(project))
+	title := widget.CommonSettings().Title
 
-	_, _, width, _ := widget.View.GetRect()
-	str := widget.settings.PaginationMarker(len(widget.GitlabProjects), widget.Idx, width) + "\n"
-	str += fmt.Sprintf(" [%s]Stats[white]\n", widget.settings.Colors.Subheading)
-	str += widget.displayStats(project)
-	str += "\n"
-	str += fmt.Sprintf(" [%s]Open Assigned Merge Requests[white]\n", widget.settings.Colors.Subheading)
-	str += widget.displayMyAssignedMergeRequests(project, widget.settings.username)
-	str += "\n"
-	str += fmt.Sprintf(" [%s]My Merge Requests[white]\n", widget.settings.Colors.Subheading)
-	str += widget.displayMyMergeRequests(project, widget.settings.username)
-	str += "\n"
-	str += fmt.Sprintf(" [%s]Open Assigned Issues[white]\n", widget.settings.Colors.Subheading)
-	str += widget.displayMyAssignedIssues(project, widget.settings.username)
-	str += "\n"
-	str += fmt.Sprintf(" [%s]My Issues[white]\n", widget.settings.Colors.Subheading)
-	str += widget.displayMyIssues(project, widget.settings.username)
+	str := ""
+	for idx, project := range widget.GitlabProjects {
+		if idx > 0 {
+			str += "\n"
+		}
+
+		str += fmt.Sprintf(" [%s]%s[white]\n", widget.settings.Colors.Subheading, project.path)
+
+		str += fmt.Sprintf("  [%s]To Review[white]\n", widget.settings.Colors.Subheading)
+		str += widget.renderMergeRequests(project.myReviewMergeRequests())
+
+		str += fmt.Sprintf("  [%s]Mine[white]\n", widget.settings.Colors.Subheading)
+		str += widget.renderMergeRequests(project.myMergeRequests())
+	}
 
 	return title, str, false
 }
 
-func (widget *Widget) displayMyMergeRequests(project *GitlabProject, username string) string {
-	mrs := project.myMergeRequests()
-	return widget.renderMergeRequests(mrs)
-}
-
-func (widget *Widget) displayMyAssignedMergeRequests(project *GitlabProject, username string) string {
-	mrs := project.myAssignedMergeRequests()
-	return widget.renderMergeRequests(mrs)
-}
-
-func (widget *Widget) displayMyAssignedIssues(project *GitlabProject, username string) string {
-	issues := project.myAssignedIssues()
-	return widget.renderIssues(issues)
-}
-
-func (widget *Widget) displayMyIssues(project *GitlabProject, username string) string {
-	issues := project.myIssues()
-	return widget.renderIssues(issues)
-}
-
-func (widget *Widget) renderMergeRequests(mrs []*glab.BasicMergeRequest) string {
-
-	length := len(mrs)
-
-	if length == 0 {
-		return " [grey]none[white]\n"
+// statusTag returns a colour and a fixed-width label describing where the MR
+// stands, so the titles that follow stay aligned.
+func statusTag(mr *MergeRequest) (color, label string) {
+	switch {
+	case mr.Draft:
+		return "grey", "draft"
+	case mr.Approved:
+		return "green", "approved"
+	default:
+		return "yellow", "open"
 	}
+}
+
+func (widget *Widget) renderMergeRequests(mrs []*MergeRequest) string {
+	if len(mrs) == 0 {
+		return "   [grey]none[white]\n"
+	}
+
 	maxItems := widget.GetItemCount()
 
 	str := ""
-	for idx, issue := range mrs {
-		str += fmt.Sprintf(` [green]["%d"]%4d[""][white] %s`, maxItems+idx, issue.IID, issue.Title)
+	for idx, mr := range mrs {
+		color, label := statusTag(mr)
+		str += fmt.Sprintf(
+			`   ["%d"][%s]%-8s[""][white] %s`,
+			maxItems+idx, color, label, mr.Title,
+		)
 		str += "\n"
-		widget.Items = append(widget.Items, ContentItem{Type: "MR", ID: issue.IID})
+		widget.Items = append(widget.Items, ContentItem{URL: mr.WebURL})
 	}
-	widget.SetItemCount(maxItems + length)
+	widget.SetItemCount(maxItems + len(mrs))
 
 	return str
-}
-
-func (widget *Widget) renderIssues(issues []*glab.Issue) string {
-
-	length := len(issues)
-
-	if length == 0 {
-		return " [grey]none[white]\n"
-	}
-	maxItems := widget.GetItemCount()
-
-	str := ""
-	for idx, issue := range issues {
-		str += fmt.Sprintf(` [green]["%d"]%4d[""][white] %s`, maxItems+idx, issue.IID, issue.Title)
-		str += "\n"
-		widget.Items = append(widget.Items, ContentItem{Type: "ISSUE", ID: issue.IID})
-	}
-	widget.SetItemCount(maxItems + length)
-
-	return str
-}
-
-func (widget *Widget) displayStats(project *GitlabProject) string {
-	str := fmt.Sprintf(
-		" MRs: %d  Issues: %d  Stars: %d\n",
-		project.MergeRequestCount(),
-		project.IssueCount(),
-		project.StarCount(),
-	)
-
-	return str
-}
-
-func (widget *Widget) title(project *GitlabProject) string {
-	return fmt.Sprintf("[green]%s [white]", project.path)
 }

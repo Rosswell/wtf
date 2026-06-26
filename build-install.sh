@@ -17,4 +17,4 @@ echo "Linking $TARGET -> $BIN"
 ln -sf "$BIN" "$TARGET"
 
 echo "Done. $("$TARGET" --version 2>/dev/null | head -1)"
-echo "Custom modules: selectablecmd"
+echo "Custom modules: selectablecmd, gitlabpipelines"
